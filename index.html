@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#4f46e5">
+    <meta name="description" content="Aplicación profesional para agendar y gestionar citas de múltiples oficios y servicios.">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="AgendaPro">
+    <title>AgendaPro - Gestión Inteligente de Citas</title>
+    <!-- Enlaces dinámicos para Manifiesto PWA e Ícono (Requerido por PWABuilder para APK) -->
+    <link id="pwa-manifest" rel="manifest" href="">
+    <link id="pwa-icon" rel="icon" type="image/svg+xml" href="">
+    <link id="pwa-apple-icon" rel="apple-touch-icon" href="">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Google Identity Services (Para autenticación real con Google Calendar si se configura Client ID) -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* Ocultar barra de desplazamiento en contenedores horizontales */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        /* Animaciones suaves */
+        .fade-in {
+            animation: fadeIn 0.25s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="text-slate-800 pb-24 md:pb-8 md:pl-64 min-h-screen flex flex-col">
+
+    <!-- BARRA DE NAVEGACIÓN LATERAL (Desktop) -->
+    <aside class="hidden md:flex flex-col w-64 bg-white border-r border-slate-200 fixed inset-y-0 left-0 z-30 shadow-sm">
+        <div class="p-6 border-b border-slate-100 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-200">
+                <i class="ph-bold ph-calendar-check text-2xl"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg text-slate-900 leading-tight">AgendaPro</h1>
+                <p class="text-xs text-slate-500">Multi-Servicios</p>
+            </div>
+        </div>
+
+        <nav class="flex-1 p-4 space-y-2">
+            <button onclick="switchTab('agendar')" id="nav-desk-agendar" class="nav-btn-desk w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all bg-indigo-50 text-indigo-700">
+                <i class="ph-bold ph-plus-circle text-xl"></i>
+                Agendar Cita
+            </button>
+            <button onclick="switchTab('miscitas')" id="nav-desk-miscitas" class="nav-btn-desk w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-slate-600 hover:bg-slate-50 transition-all">
+                <i class="ph-bold ph-calendar-blank text-xl"></i>
+                Mis Citas
+                <span id="badge-citas-desk" class="ml-auto bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+            </button>
+            <button onclick="switchTab('ajustes')" id="nav-desk-ajustes" class="nav-btn-desk w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-slate-600 hover:bg-slate-50 transition-all">
+                <i class="ph-bold ph-gear text-xl"></i>
+                Ajustes
+            </button>
+        </nav>
+
+        <!-- Estado de Google Calendar en Desktop -->
+        <div class="p-4 m-4 rounded-xl bg-slate-50 border border-slate-200">
+            <div class="flex items-center gap-2 mb-2">
+                <i class="ph-fill ph-google-logo text-lg text-blue-600"></i>
+                <span class="text-xs font-semibold text-slate-700">Google Calendar</span>
+            </div>
+            <p id="gcal-status-desk" class="text-xs text-slate-500 mb-3 truncate">No vinculado</p>
+            <button onclick="openGoogleModal()" class="w-full py-2 px-3 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg shadow-sm transition">
+                Configurar Cuenta
+            </button>
+        </div>
+    </aside>
+
+    <!-- HEADER MÓVIL -->
+    <header class="md:hidden bg-white border-b border-slate-200 px-4 py-3 sticky top-0 z-30 flex items-center justify-between shadow-sm">
+        <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-sm">
+                <i class="ph-bold ph-calendar-check text-xl"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-base text-slate-900 leading-none">AgendaPro</h1>
+                <span id="header-subtitle" class="text-[11px] text-slate-500">Agendar nueva cita</span>
+            </div>
+        </div>
+        <button onclick="openGoogleModal()" id="gcal-btn-mobile" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200 active:scale-95 transition">
+            <i class="ph-fill ph-google-logo text-blue-600"></i>
+            <span id="gcal-status-mob">Conectar</span>
+        </button>
+    </header>
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <main class="flex-1 max-w-4xl w-full mx-auto p-4 md:p-8">
+
+        <!-- ==========================================
+         CONFIGURACIÓN PWA (PARA GENERAR APK EN PWABUILDER)
+    =========================================== -->
+    <script>
+        (function initPWA() {
+            // 1. Generar ícono vectorial SVG en alta calidad (512x512) para Android/APK
+            const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+                <rect width="512" height="512" rx="112" fill="#4f46e5"/>
+                <rect x="96" y="120" width="320" height="296" rx="40" fill="#ffffff"/>
+                <rect x="96" y="120" width="320" height="84" rx="40" fill="#312e81"/>
+                <rect x="96" y="164" width="320" height="40" fill="#312e81"/>
+                <circle cx="176" cy="120" r="18" fill="#e0e7ff"/>
+                <circle cx="336" cy="120" r="18" fill="#e0e7ff"/>
+                <path d="M188 298 L234 344 L330 248" stroke="#10b981" stroke-width="34" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            </svg>`;
+            const iconUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgIcon);
+            document.getElementById('pwa-icon').href = iconUrl;
+            document.getElementById('pwa-apple-icon').href = iconUrl;
+
+            // 2. Generar Web App Manifest dinámico (Requerido por PWABuilder)
+            const manifest = {
+                name: "AgendaPro - Gestión de Citas",
+                short_name: "AgendaPro",
+                description: "Agenda inteligente de citas multi-servicios con comprobantes para WhatsApp y sincronización con Google Calendar.",
+                start_url: window.location.href,
+                scope: "./",
+                display: "standalone",
+                orientation: "portrait",
+                background_color: "#f8fafc",
+                theme_color: "#4f46e5",
+                categories: ["business", "productivity"],
+                icons: [
+                    {
+                        src: iconUrl,
+                        sizes: "192x192",
+                        type: "image/svg+xml",
+                        purpose: "any maskable"
+                    },
+                    {
+                        src: iconUrl,
+                        sizes: "512x512",
+                        type: "image/svg+xml",
+                        purpose: "any maskable"
+                    }
+                ]
+            };
+
+            const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+            document.getElementById('pwa-manifest').href = URL.createObjectURL(manifestBlob);
+
+            // 3. Registrar Service Worker en línea para soporte offline y calificación 100% en PWABuilder
+            if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+                const swCode = `
+                    const CACHE_NAME = 'agendapro-v1';
+                    self.addEventListener('install', (e) => {
+                        self.skipWaiting();
+                    });
+                    self.addEventListener('activate', (e) => {
+                        e.waitUntil(clients.claim());
+                    });
+                    self.addEventListener('fetch', (e) => {
+                        e.respondWith(
+                            fetch(e.request).catch(() => caches.match(e.request))
+                        );
+                    });
+                `;
+                const swBlob = new Blob([swCode], { type: 'application/javascript' });
+                const swUrl = URL.createObjectURL(swBlob);
+                navigator.serviceWorker.register(swUrl).catch(() => {});
+            }
+        })();
+    </script>
+
+    <!-- ==========================================
+         LÓGICA DE LA APLICACIÓN (JAVASCRIPT)
+    =========================================== -->
+    <script>
+        // --- ESTADO GLOBAL DE LA APLICACIÓN ---
+        let citas = JSON.parse(localStorage.getItem('agendapro_citas')) || [];
+        let ajustes = JSON.parse(localStorage.getItem('agendapro_ajustes')) || {
+            horarioActivo: false,
+            horaInicio: '09:00',
+            horaFin: '18:00',
+            encabezado: 'MI NEGOCIO DE SERVICIOS\nAtención Profesional Personalizada',
+            pie: 'Gracias por su preferencia.\nPor favor llegue 10 minutos antes de su cita.',
+            logoBase64: null // Representa la celda única en la pestaña "Config_Logo"
+        };
+        let googleAccount = JSON.parse(localStorage.getItem('agendapro_google')) || {
+            email: '',
+            clientId: '',
+            connected: false
+        };
+
+        // Variables de control de calendarios y selección
+        const hoyStr = formatDateISO(new Date());
+        let fechaSeleccionadaAgendar = hoyStr;
+        let horaSeleccionadaAgendar = '';
+        let mesAgendar = new Date();
+
+        let fechaSeleccionadaMisCitas = hoyStr;
+        let mesMisCitas = new Date();
+        let filtroVistaDia = 'todos'; // 'todos' | 'citas' | 'libres'
+
+        let ultimaCitaCreada = null;
+        let googleAccessToken = null;
+
+        // --- INICIALIZACIÓN ---
+        window.onload = function() {
+            cargarAjustesEnUI();
+            actualizarEstadoGoogleUI();
+            renderCalendario('agendar');
+            seleccionarDiaAgendar(hoyStr);
+            renderCalendario('miscitas');
+            renderVistaDiaMisCitas();
+            actualizarContadores();
+
+            // Si no tiene cuenta de Google configurada, sugerir amablemente tras 1 segundo
+            if (!googleAccount.connected) {
+                setTimeout(() => {
+                    showToast('Recuerda vincular tu cuenta de Google para sincronizar citas.', 'info');
+                }, 1200);
+            }
+        };
+
+        // --- UTILIDADES DE FECHA Y HORA ---
+        function formatDateISO(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        function formatFechaLegible(isoStr) {
+            const [y, m, d] = isoStr.split('-').map(Number);
+            const date = new Date(y, m - 1, d);
+            return date.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        }
+
+        function timeToMinutes(timeStr) {
+            if (!timeStr) return 0;
+            const [h, m] = timeStr.split(':').map(Number);
+            return h * 60 + m;
+        }
+
+        function minutesToTime(totalMins) {
+            const h = Math.floor(totalMins / 60) % 24;
+            const m = totalMins % 60;
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        }
+
+        function formatHora12(timeStr) {
+            const [h, m] = timeStr.split(':').map(Number);
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            const h12 = h % 12 || 12;
+            return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+        }
+
+        function showToast(msg, type = 'success') {
+            const toast = document.getElementById('toast');
+            const icon = document.getElementById('toast-icon');
+            const text = document.getElementById('toast-msg');
+
+            text.textContent = msg;
+            if (type === 'success') icon.className = 'ph-fill ph-check-circle text-emerald-400 text-xl shrink-0';
+            else if (type === 'warning') icon.className = 'ph-fill ph-warning text-amber-400 text-xl shrink-0';
+            else icon.className = 'ph-fill ph-info text-indigo-400 text-xl shrink-0';
+
+            toast.classList.remove('translate-x-full', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-x-full', 'opacity-0');
+            }, 3500);
+        }
+
+        // --- NAVEGACIÓN ENTRE PESTAÑAS ---
+        function switchTab(tab) {
+            ['agendar', 'miscitas', 'ajustes'].forEach(t => {
+                document.getElementById(`tab-${t}`).classList.add('hidden');
+                
+                // Desktop buttons
+                const deskBtn = document.getElementById(`nav-desk-${t}`);
+                deskBtn.classList.remove('bg-indigo-50', 'text-indigo-700');
+                deskBtn.classList.add('text-slate-600');
+
+                // Mobile buttons
+                const mobBtn = document.getElementById(`nav-mob-${t}`);
+                mobBtn.classList.remove('text-indigo-600');
+                mobBtn.classList.add('text-slate-500');
+            });
+
+            document.getElementById(`tab-${tab}`).classList.remove('hidden');
+            
+            const activeDesk = document.getElementById(`nav-desk-${tab}`);
+            activeDesk.classList.add('bg-indigo-50', 'text-indigo-700');
+            activeDesk.classList.remove('text-slate-600');
+
+            const activeMob = document.getElementById(`nav-mob-${tab}`);
+            activeMob.classList.add('text-indigo-600');
+            activeMob.classList.remove('text-slate-500');
+
+            const subtitles = {
+                agendar: 'Agendar nueva cita',
+                miscitas: 'Consulta y gestión de agenda',
+                ajustes: 'Horarios y formato de comprobante'
+            };
+            document.getElementById('header-subtitle').textContent = subtitles[tab];
+
+            if (tab === 'agendar') {
+                renderCalendario('agendar');
+                recalcularDisponibilidadAgendar();
+            } else if (tab === 'miscitas') {
+                renderCalendario('miscitas');
+                renderVistaDiaMisCitas();
+            }
+        }
+
+        function actualizarContadores() {
+            const count = citas.length;
+            document.getElementById('badge-citas-desk').textContent = count;
+            document.getElementById('badge-citas-mob').textContent = count;
+        }
+
+        // --- RENDERIZADO DE CALENDARIOS INTERACTIVOS ---
+        function changeMonth(tipo, delta) {
+            if (tipo === 'agendar') {
+                mesAgendar.setMonth(mesAgendar.getMonth() + delta);
+                renderCalendario('agendar');
+            } else {
+                mesMisCitas.setMonth(mesMisCitas.getMonth() + delta);
+                renderCalendario('miscitas');
+            }
+        }
+
+        function renderCalendario(tipo) {
+            const dateObj = tipo === 'agendar' ? mesAgendar : mesMisCitas;
+            const gridEl = document.getElementById(`cal-${tipo}-grid`);
+            const titleEl = document.getElementById(`cal-${tipo}-month`);
+            const selectedDateStr = tipo === 'agendar' ? fechaSeleccionadaAgendar : fechaSeleccionadaMisCitas;
+
+            const year = dateObj.getFullYear();
+            const month = dateObj.getMonth();
+
+            titleEl.textContent = dateObj.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+            gridEl.innerHTML = '';
+
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            // Espacios vacíos antes del día 1
+            for (let i = 0; i < firstDay; i++) {
+                gridEl.innerHTML += `<div></div>`;
+            }
+
+            // Días del mes
+            for (let day = 1; day <= daysInMonth; day++) {
+                const currentIso = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const isSelected = currentIso === selectedDateStr;
+                const isToday = currentIso === hoyStr;
+                const tieneCitas = citas.some(c => c.fecha === currentIso);
+
+                let btnClasses = 'relative h-9 w-full rounded-xl font-medium transition flex flex-col items-center justify-center ';
+                if (isSelected) {
+                    btnClasses += 'bg-indigo-600 text-white font-bold shadow-sm';
+                } else if (isToday) {
+                    btnClasses += 'bg-indigo-50 text-indigo-700 font-bold border border-indigo-200';
+                } else {
+                    btnClasses += 'hover:bg-white text-slate-700';
+                }
+
+                const dotHtml = tieneCitas 
+                    ? `<span class="w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-indigo-500'} absolute bottom-1"></span>` 
+                    : '';
+
+                const clickFn = tipo === 'agendar' 
+                    ? `seleccionarDiaAgendar('${currentIso}')` 
+                    : `seleccionarDiaMisCitas('${currentIso}')`;
+
+                gridEl.innerHTML += `
+                    <button type="button" onclick="${clickFn}" class="${btnClasses}">
+                        <span>${day}</span>
+                        ${dotHtml}
+                    </button>
+                `;
+            }
+        }
+
+        // --- LÓGICA DE DISPONIBILIDAD Y CONFLICTO EN "AGENDAR CITA" ---
+        function seleccionarDiaAgendar(isoStr) {
+            fechaSeleccionadaAgendar = isoStr;
+            renderCalendario('agendar');
+            document.getElementById('lbl-fecha-seleccionada').textContent = formatFechaLegible(isoStr);
+            recalcularDisponibilidadAgendar();
+        }
+
+        function getRangoLaboralMinutos() {
+            if (ajustes.horarioActivo) {
+                return {
+                    inicio: timeToMinutes(ajustes.horaInicio),
+                    fin: timeToMinutes(ajustes.horaFin)
+                };
+            }
+            // Si no está activada la restricción por horario, mostrar jornada amplia de 07:00 a 22:00
+            return { inicio: 7 * 60, fin: 22 * 60 };
+        }
+
+        function obtenerDuracionSeleccionadaMinutos() {
+            const h = parseInt(document.getElementById('cita-duracion-horas').value) || 0;
+            const m = parseInt(document.getElementById('cita-duracion-minutos').value) || 0;
+            return Math.max(15, h * 60 + m); // Mínimo 15 minutos
+        }
+
+        function verificarCruceHorario(fecha, inicioMin, duracionMin) {
+            const finMin = inicioMin + duracionMin;
+            const citasDelDia = citas.filter(c => c.fecha === fecha);
+
+            // 1. Verificar si choca con alguna cita ya existente
+            for (const c of citasDelDia) {
+                const cInicio = timeToMinutes(c.horaInicio);
+                const cFin = cInicio + c.duracionMinutos;
+                // Hay traslape si (inicioA < finB) y (finA > inicioB)
+                if (inicioMin < cFin && finMin > cInicio) {
+                    return {
+                        conflicto: true,
+                        mensaje: `El servicio terminaría a las ${formatHora12(minutesToTime(finMin))}, pero ya tienes agendado a "${c.nombre}" de ${formatHora12(c.horaInicio)} a ${formatHora12(minutesToTime(cFin))}.`
+                    };
+                }
+            }
+
+            // 2. Verificar si excede el horario de cierre configurado en Ajustes
+            if (ajustes.horarioActivo) {
+                const finLaboral = timeToMinutes(ajustes.horaFin);
+                if (finMin > finLaboral) {
+                    return {
+                        conflicto: true,
+                        mensaje: `El servicio durará hasta las ${formatHora12(minutesToTime(finMin))}, lo cual excede tu hora de cierre configurada (${formatHora12(ajustes.horaFin)}).`
+                    };
+                }
+            }
+
+            return { conflicto: false, mensaje: '' };
+        }
+
+        function recalcularDisponibilidadAgendar() {
+            const container = document.getElementById('slots-disponibles-container');
+            container.innerHTML = '';
+
+            const rango = getRangoLaboralMinutos();
+            const duracionNueva = obtenerDuracionSeleccionadaMinutos();
+            const citasDelDia = citas.filter(c => c.fecha === fechaSeleccionadaAgendar);
+
+            // Generamos bloques cada 30 minutos dentro del rango disponible
+            // Un bloque de inicio es "libre" si no cae dentro de una cita ya ocupada
+            let slotsGenerados = 0;
+
+            for (let min = rango.inicio; min < rango.fin; min += 30) {
+                const timeStr = minutesToTime(min);
+                
+                // Verificar si este punto de inicio ya está ocupado por otra cita
+                const ocupadoPorCita = citasDelDia.some(c => {
+                    const cIni = timeToMinutes(c.horaInicio);
+                    const cFin = cIni + c.duracionMinutos;
+                    return min >= cIni && min < cFin;
+                });
+
+                // Solo mostrar los horarios disponibles (no ocupados)
+                if (!ocupadoPorCita) {
+                    slotsGenerados++;
+                    const isSelected = horaSeleccionadaAgendar === timeStr;
+                    
+                    // Verificar si con la duración actual alcanzaría el tiempo antes de la siguiente cita
+                    const check = verificarCruceHorario(fechaSeleccionadaAgendar, min, duracionNueva);
+                    
+                    let btnClass = 'py-2 px-2 rounded-xl text-xs font-semibold border transition text-center ';
+                    if (isSelected) {
+                        btnClass += check.conflicto 
+                            ? 'bg-amber-500 text-white border-amber-600 shadow-sm' 
+                            : 'bg-indigo-600 text-white border-indigo-600 shadow-sm';
+                    } else if (check.conflicto) {
+                        // Disponible para iniciar, pero advertencia visual sutil de que la duración excede el hueco libre
+                        btnClass += 'bg-amber-50/70 text-amber-800 border-amber-200 hover:bg-amber-100';
+                    } else {
+                        btnClass += 'bg-white text-slate-700 border-slate-200 hover:border-indigo-400 hover:text-indigo-600';
+                    }
+
+                    container.innerHTML += `
+                        <button type="button" onclick="seleccionarSlotHora('${timeStr}')" class="${btnClass}">
+                            ${formatHora12(timeStr)}
+                            ${check.conflicto ? '<span class="block text-[9px] font-normal opacity-80">Tiempo justo</span>' : ''}
+                        </button>
+                    `;
+                }
+            }
+
+            if (slotsGenerados === 0) {
+                container.innerHTML = `<p class="col-span-full text-xs text-slate-500 py-4 text-center">No hay horarios libres en este día. Puedes ingresar una hora exacta abajo.</p>`;
+            }
+
+            // Revalidar la hora actualmente seleccionada si existe
+            if (horaSeleccionadaAgendar) {
+                validarYMostrarEstadoHorario();
+            }
+        }
+
+        function seleccionarSlotHora(timeStr) {
+            horaSeleccionadaAgendar = timeStr;
+            document.getElementById('cita-hora-manual').value = timeStr;
+            recalcularDisponibilidadAgendar();
+        }
+
+        function seleccionarHoraManual(timeStr) {
+            if (!timeStr) return;
+            horaSeleccionadaAgendar = timeStr;
+            recalcularDisponibilidadAgendar();
+        }
+
+        function validarYMostrarEstadoHorario() {
+            const alertaBox = document.getElementById('alerta-conflicto');
+            const alertaTxt = document.getElementById('alerta-conflicto-texto');
+            const resumenBox = document.getElementById('resumen-horario');
+            const resumenTxt = document.getElementById('resumen-horario-texto');
+            const resumenFin = document.getElementById('resumen-fin-texto');
+
+            if (!horaSeleccionadaAgendar) {
+                alertaBox.classList.add('hidden');
+                resumenBox.classList.add('hidden');
+                return;
+            }
+
+            const duracion = obtenerDuracionSeleccionadaMinutos();
+            const inicioMin = timeToMinutes(horaSeleccionadaAgendar);
+            const finStr = minutesToTime(inicioMin + duracion);
+            const check = verificarCruceHorario(fechaSeleccionadaAgendar, inicioMin, duracion);
+
+            resumenBox.classList.remove('hidden');
+            resumenTxt.textContent = `${formatHora12(horaSeleccionadaAgendar)} (${fechaSeleccionadaAgendar})`;
+            resumenFin.textContent = `Concluye: ${formatHora12(finStr)}`;
+
+            if (check.conflicto) {
+                alertaBox.classList.remove('hidden');
+                alertaTxt.textContent = check.mensaje;
+            } else {
+                alertaBox.classList.add('hidden');
+            }
+        }
+
+        // --- GUARDAR CITA, SINCRONIZAR GOOGLE Y GENERAR IMAGEN ---
+        function handleFormSubmit(e) {
+            e.preventDefault();
+
+            if (!horaSeleccionadaAgendar) {
+                showToast('Por favor selecciona un horario disponible para la cita.', 'warning');
+                return;
+            }
+
+            const nombre = document.getElementById('cita-nombre').value.trim();
+            const servicio = document.getElementById('cita-servicio').value.trim();
+            const costo = parseFloat(document.getElementById('cita-costo').value) || 0;
+            const telefono = document.getElementById('cita-telefono').value.trim();
+            const direccion = document.getElementById('cita-direccion').value.trim();
+            const duracionMinutos = obtenerDuracionSeleccionadaMinutos();
+            const horaFin = minutesToTime(timeToMinutes(horaSeleccionadaAgendar) + duracionMinutos);
+
+            const nuevaCita = {
+                id: 'CITA-' + Date.now(),
+                nombre,
+                servicio,
+                costo,
+                telefono,
+                direccion,
+                fecha: fechaSeleccionadaAgendar,
+                horaInicio: horaSeleccionadaAgendar,
+                horaFin,
+                duracionMinutos,
+                creadaEn: new Date().toISOString()
+            };
+
+            citas.push(nuevaCita);
+            localStorage.setItem('agendapro_citas', JSON.stringify(citas));
+            ultimaCitaCreada = nuevaCita;
+
+            actualizarContadores();
+            
+            // Sincronizar con Google Calendar
+            sincronizarConGoogleCalendar(nuevaCita);
+
+            // Generar comprobante vertical para WhatsApp
+            generarComprobanteCanvas(nuevaCita);
+
+            // Limpiar formulario y actualizar disponibilidad
+            document.getElementById('form-cita').reset();
+            horaSeleccionadaAgendar = '';
+            document.getElementById('alerta-conflicto').classList.add('hidden');
+            document.getElementById('resumen-horario').classList.add('hidden');
+            recalcularDisponibilidadAgendar();
+            renderCalendario('agendar');
+            renderCalendario('miscitas');
+            renderVistaDiaMisCitas();
+
+            showToast('¡Cita agendada correctamente!');
+        }
+
+        // --- SINCRONIZACIÓN CON GOOGLE CALENDAR ---
+        function openGoogleModal() {
+            document.getElementById('google-email-input').value = googleAccount.email || '';
+            document.getElementById('google-client-id').value = googleAccount.clientId || '';
+            if (googleAccount.connected) {
+                document.getElementById('google-connected-info').classList.remove('hidden');
+                document.getElementById('google-connected-email').textContent = googleAccount.email;
+            } else {
+                document.getElementById('google-connected-info').classList.add('hidden');
+            }
+            document.getElementById('modal-google').classList.remove('hidden');
+        }
+
+        function closeGoogleModal() {
+            document.getElementById('modal-google').classList.add('hidden');
+        }
+
+        function conectarCuentaGoogle() {
+            const email = document.getElementById('google-email-input').value.trim();
+            const clientId = document.getElementById('google-client-id').value.trim();
+
+            if (!email || !email.includes('@')) {
+                showToast('Ingresa un correo electrónico de Google válido.', 'warning');
+                return;
+            }
+
+            googleAccount = { email, clientId, connected: true };
+            localStorage.setItem('agendapro_google', JSON.stringify(googleAccount));
+            actualizarEstadoGoogleUI();
+            closeGoogleModal();
+            showToast(`Cuenta ${email} vinculada a Google Calendar.`);
+
+            // Si el usuario proporcionó un Client ID real de OAuth, iniciar flujo de token
+            if (clientId && window.google && google.accounts) {
+                try {
+                    const tokenClient = google.accounts.oauth2.initTokenClient({
+                        client_id: clientId,
+                        scope: 'https://www.googleapis.com/auth/calendar.events',
+                        callback: (resp) => {
+                            if (resp.access_token) {
+                                googleAccessToken = resp.access_token;
+                                showToast('Autorización API de Google Calendar activa.');
+                            }
+                        }
+                    });
+                    tokenClient.requestAccessToken();
+                } catch (err) {
+                    console.warn('Flujo OAuth directo omitido, se usará enlace directo de calendario.', err);
+                }
+            }
+        }
+
+        function desconectarGoogle() {
+            googleAccount = { email: '', clientId: '', connected: false };
+            googleAccessToken = null;
+            localStorage.setItem('agendapro_google', JSON.stringify(googleAccount));
+            actualizarEstadoGoogleUI();
+            closeGoogleModal();
+            showToast('Cuenta de Google desvinculada.', 'info');
+        }
+
+        function actualizarEstadoGoogleUI() {
+            const deskStatus = document.getElementById('gcal-status-desk');
+            const mobStatus = document.getElementById('gcal-status-mob');
+            if (googleAccount.connected) {
+                deskStatus.textContent = googleAccount.email;
+                deskStatus.classList.add('text-emerald-600', 'font-semibold');
+                mobStatus.textContent = 'Sincronizado';
+            } else {
+                deskStatus.textContent = 'No vinculado';
+                deskStatus.classList.remove('text-emerald-600', 'font-semibold');
+                mobStatus.textContent = 'Conectar';
+            }
+        }
+
+        async function sincronizarConGoogleCalendar(cita) {
+            if (!googleAccount.connected) return;
+
+            const startDateTime = `${cita.fecha}T${cita.horaInicio}:00`;
+            const endDateTime = `${cita.fecha}T${cita.horaFin}:00`;
+            const titulo = `Cita: ${cita.nombre} - ${cita.servicio}`;
+            const descripcion = `Cliente: ${cita.nombre}\nServicio: ${cita.servicio}\nCosto: $${cita.costo}\nTeléfono: ${cita.telefono}${cita.direccion ? '\nDirección: ' + cita.direccion : ''}`;
+
+            // 1. Si hay token OAuth activo, insertar directo vía API REST de Google Calendar
+            if (googleAccessToken) {
+                try {
+                    const event = {
+                        summary: titulo,
+                        location: cita.direccion || '',
+                        description: descripcion,
+                        start: { dateTime: new Date(startDateTime).toISOString() },
+                        end: { dateTime: new Date(endDateTime).toISOString() }
+                    };
+                    await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${googleAccessToken}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(event)
+                    });
+                    showToast('Sincronizado en Google Calendar automáticamente.');
+                    return;
+                } catch (e) {
+                    console.error('Error API Calendar:', e);
+                }
+            }
+
+            // 2. Enlace directo pre-llenado para la cuenta Google configurada (funciona sin configuración de servidor)
+            const gStart = startDateTime.replace(/[-:]/g, '');
+            const gEnd = endDateTime.replace(/[-:]/g, '');
+            const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(titulo)}&dates=${gStart}/${gEnd}&details=${encodeURIComponent(descripcion)}&location=${encodeURIComponent(cita.direccion || '')}&authuser=${encodeURIComponent(googleAccount.email)}`;
+            
+            // Guardamos la URL en la cita por si desea abrirla luego desde "Mis Citas"
+            cita.googleCalendarUrl = url;
+            localStorage.setItem('agendapro_citas', JSON.stringify(citas));
+        }
+
+        function abrirEnGoogleCalendar(citaId) {
+            const cita = citas.find(c => c.id === citaId);
+            if (!cita) return;
+            const startDateTime = `${cita.fecha}T${cita.horaInicio}:00`.replace(/[-:]/g, '');
+            const endDateTime = `${cita.fecha}T${cita.horaFin}:00`.replace(/[-:]/g, '');
+            const titulo = `Cita: ${cita.nombre} - ${cita.servicio}`;
+            const descripcion = `Cliente: ${cita.nombre}\nServicio: ${cita.servicio}\nCosto: $${cita.costo}\nTeléfono: ${cita.telefono}${cita.direccion ? '\nDirección: ' + cita.direccion : ''}`;
+            const authParam = googleAccount.email ? `&authuser=${encodeURIComponent(googleAccount.email)}` : '';
+            const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(titulo)}&dates=${startDateTime}/${endDateTime}&details=${encodeURIComponent(descripcion)}&location=${encodeURIComponent(cita.direccion || '')}${authParam}`;
+            window.open(url, '_blank');
+        }
+
+        // --- GENERACIÓN DE COMPROBANTE VERTICAL EN CANVAS (PARA WHATSAPP) ---
+        function generarComprobanteCanvas(cita) {
+            const canvas = document.getElementById('canvas-comprobante');
+            const ctx = canvas.getContext('2d');
+            const W = canvas.width;  // 720px
+            const H = canvas.height; // 1280px (Formato vertical 9:16 ideal para teléfono)
+
+            const dibujarContenido = (logoImg = null) => {
+                // 1. Fondo base elegante
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, W, H);
+
+                // Banda superior decorativa
+                const grad = ctx.createLinearGradient(0, 0, W, 260);
+                grad.addColorStop(0, '#312e81'); // Indigo 900
+                grad.addColorStop(1, '#4f46e5'); // Indigo 600
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, W, 270);
+
+                // Patrón sutil en cabecera
+                ctx.fillStyle = 'rgba(255,255,255,0.06)';
+                ctx.beginPath();
+                ctx.arc(W - 60, 40, 140, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 2. ENCABEZADO PERSONALIZADO (Desde Ajustes)
+                ctx.fillStyle = '#ffffff';
+                ctx.textAlign = 'center';
+                const lineasEncabezado = (ajustes.encabezado || 'COMPROBANTE DE CITA').split('\n');
+                let yHeader = 85;
+                lineasEncabezado.forEach((linea, idx) => {
+                    ctx.font = idx === 0 ? 'bold 34px Inter, sans-serif' : '500 22px Inter, sans-serif';
+                    ctx.fillStyle = idx === 0 ? '#ffffff' : '#e0e7ff';
+                    ctx.fillText(linea.trim(), W / 2, yHeader, W - 80);
+                    yHeader += idx === 0 ? 42 : 30;
+                });
+
+                // Etiqueta flotante "CITA CONFIRMADA"
+                ctx.fillStyle = '#10b981';
+                roundRect(ctx, W / 2 - 160, 242, 320, 52, 26, true, false);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 22px Inter, sans-serif';
+                ctx.fillText('✓ CITA AGENDADA', W / 2, 276);
+
+                // 3. MARCA DE AGUA CENTRAL (Logo desde Ajustes)
+                if (logoImg) {
+                    ctx.save();
+                    ctx.globalAlpha = 0.10; // Transparencia elegante de marca de agua
+                    const maxLogoSize = 420;
+                    const scale = Math.min(maxLogoSize / logoImg.width, maxLogoSize / logoImg.height);
+                    const lw = logoImg.width * scale;
+                    const lh = logoImg.height * scale;
+                    ctx.drawImage(logoImg, (W - lw) / 2, 460 + (maxLogoSize - lh) / 2, lw, lh);
+                    ctx.restore();
+                }
+
+                // 4. TARJETA DE DETALLES DE LA CITA
+                ctx.strokeStyle = '#e2e8f0';
+                ctx.lineWidth = 3;
+                roundRect(ctx, 48, 330, W - 96, 730, 32, false, true);
+
+                let yPos = 400;
+                const leftX = 85;
+                const rightX = W - 85;
+
+                const dibujarCampo = (etiqueta, valor, destacar = false) => {
+                    ctx.textAlign = 'left';
+                    ctx.fillStyle = '#64748b';
+                    ctx.font = '600 20px Inter, sans-serif';
+                    ctx.fillText(etiqueta.toUpperCase(), leftX, yPos);
+
+                    yPos += 38;
+                    ctx.fillStyle = destacar ? '#4f46e5' : '#0f172a';
+                    ctx.font = destacar ? 'bold 34px Inter, sans-serif' : 'bold 28px Inter, sans-serif';
+                    
+                    // Ajuste simple si el texto es muy largo
+                    const textoMostrar = valor.length > 34 ? valor.substring(0, 32) + '...' : valor;
+                    ctx.fillText(textoMostrar, leftX, yPos);
+
+                    yPos += 26;
+                    ctx.strokeStyle = '#f1f5f9';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(leftX, yPos);
+                    ctx.lineTo(rightX, yPos);
+                    ctx.stroke();
+
+                    yPos += 44;
+                };
+
+                dibujarCampo('Cliente', cita.nombre);
+                dibujarCampo('Fecha de la cita', formatFechaLegible(cita.fecha));
+                dibujarCampo('Horario y Duración', `${formatHora12(cita.horaInicio)} a ${formatHora12(cita.horaFin)}`, true);
+                dibujarCampo('Servicio Contratado', cita.servicio);
+                dibujarCampo('Costo del Servicio', `$${Number(cita.costo).toFixed(2)} MXN`);
+                
+                if (cita.direccion) {
+                    dibujarCampo('Dirección (A domicilio)', cita.direccion);
+                } else {
+                    dibujarCampo('Teléfono de contacto', cita.telefono);
+                }
+
+                // 5. PIE DE PÁGINA PERSONALIZADO (Desde Ajustes)
+                ctx.fillStyle = '#f8fafc';
+                ctx.fillRect(0, 1100, W, 180);
+                ctx.strokeStyle = '#e2e8f0';
+                ctx.beginPath();
+                ctx.moveTo(0, 1100);
+                ctx.lineTo(W, 1100);
+                ctx.stroke();
+
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#475569';
+                const lineasPie = (ajustes.pie || 'Gracias por agendar con nosotros.').split('\n');
+                let yFooter = 1150;
+                lineasPie.forEach((linea) => {
+                    ctx.font = '500 21px Inter, sans-serif';
+                    ctx.fillText(linea.trim(), W / 2, yFooter, W - 80);
+                    yFooter += 30;
+                });
+
+                // Mostrar imagen generada en el Modal
+                const dataUrl = canvas.toDataURL('image/png');
+                document.getElementById('img-comprobante-preview').src = dataUrl;
+                document.getElementById('modal-comprobante').classList.remove('hidden');
+            };
+
+            // Si hay logo en Ajustes, cargarlo primero antes de renderizar el canvas
+            if (ajustes.logoBase64) {
+                const img = new Image();
+                img.onload = () => dibujarContenido(img);
+                img.onerror = () => dibujarContenido(null);
+                img.src = ajustes.logoBase64;
+            } else {
+                dibujarContenido(null);
+            }
+        }
+
+        // Helper para rectángulos con esquinas redondeadas en Canvas
+        function roundRect(ctx, x, y, width, height, radius, fill, stroke) {
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + width - radius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+            ctx.lineTo(x + width, y + height - radius);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+            ctx.lineTo(x + radius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+            if (fill) ctx.fill();
+            if (stroke) ctx.stroke();
+        }
+
+        function cerrarModalComprobante() {
+            document.getElementById('modal-comprobante').classList.add('hidden');
+        }
+
+        async function copiarImagenPortapapeles() {
+            const canvas = document.getElementById('canvas-comprobante');
+            try {
+                canvas.toBlob(async (blob) => {
+                    if (navigator.clipboard && window.ClipboardItem) {
+                        await navigator.clipboard.write([
+                            new ClipboardItem({ 'image/png': blob })
+                        ]);
+                        showToast('¡Imagen copiada! Ya puedes pegarla en WhatsApp.');
+                    } else {
+                        descargarImagenComprobante();
+                        showToast('Tu navegador no permite copiar imágenes directo; se descargó el archivo.', 'info');
+                    }
+                }, 'image/png');
+            } catch (err) {
+                descargarImagenComprobante();
+                showToast('Imagen descargada para compartir en WhatsApp.', 'info');
+            }
+        }
+
+        function descargarImagenComprobante() {
+            const canvas = document.getElementById('canvas-comprobante');
+            const link = document.createElement('a');
+            const nombreArchivo = ultimaCitaCreada ? `Cita_${ultimaCitaCreada.nombre.replace(/\s+/g, '_')}.png` : 'Comprobante_Cita.png';
+            link.download = nombreArchivo;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            showToast('Comprobante descargado.');
+        }
+
+        function abrirWhatsAppCliente() {
+            if (!ultimaCitaCreada || !ultimaCitaCreada.telefono) return;
+            const tel = ultimaCitaCreada.telefono.replace(/\D/g, '');
+            const msg = `Hola ${ultimaCitaCreada.nombre}, te comparto el comprobante de tu cita para *${ultimaCitaCreada.servicio}* el día *${formatFechaLegible(ultimaCitaCreada.fecha)}* a las *${formatHora12(ultimaCitaCreada.horaInicio)}*.`;
+            window.open(`https://wa.me/52${tel}?text=${encodeURIComponent(msg)}`, '_blank');
+        }
+
+        function previsualizarComprobantePrueba() {
+            const citaDemo = {
+                nombre: 'Cliente de Ejemplo',
+                servicio: 'Consulta / Servicio General',
+                costo: 500,
+                telefono: '5512345678',
+                direccion: 'Av. Principal #123, Col. Centro',
+                fecha: hoyStr,
+                horaInicio: '10:00',
+                horaFin: '11:30'
+            };
+            ultimaCitaCreada = citaDemo;
+            generarComprobanteCanvas(citaDemo);
+        }
+
+        // --- SECCIÓN "MIS CITAS": CALENDARIO DEL DÍA Y BUSCADOR ---
+        function seleccionarDiaMisCitas(isoStr) {
+            fechaSeleccionadaMisCitas = isoStr;
+            renderCalendario('miscitas');
+            renderVistaDiaMisCitas();
+        }
+
+        function irAHoyMisCitas() {
+            mesMisCitas = new Date();
+            seleccionarDiaMisCitas(hoyStr);
+        }
+
+        function setFiltroVistaDia(filtro) {
+            filtroVistaDia = filtro;
+            ['todos', 'citas', 'libres'].forEach(f => {
+                const btn = document.getElementById(`btn-vista-${f}`);
+                if (f === filtro) {
+                    btn.classList.add('bg-white', 'text-slate-800', 'shadow-xs');
+                    btn.classList.remove('text-slate-600');
+                } else {
+                    btn.classList.remove('bg-white', 'text-slate-800', 'shadow-xs');
+                    btn.classList.add('text-slate-600');
+                }
+            });
+            renderVistaDiaMisCitas();
+        }
+
+        function renderVistaDiaMisCitas() {
+            document.getElementById('titulo-dia-miscitas').textContent = formatFechaLegible(fechaSeleccionadaMisCitas);
+            const container = document.getElementById('timeline-dia-container');
+            container.innerHTML = '';
+
+            const rango = getRangoLaboralMinutos();
+            const citasDelDia = citas
+                .filter(c => c.fecha === fechaSeleccionadaMisCitas)
+                .sort((a, b) => timeToMinutes(a.horaInicio) - timeToMinutes(b.horaInicio));
+
+            // Construir línea de tiempo del día combinando citas agendadas y bloques libres
+            const bloques = [];
+            let cursorMin = rango.inicio;
+
+            citasDelDia.forEach(cita => {
+                const cIni = timeToMinutes(cita.horaInicio);
+                const cFin = cIni + cita.duracionMinutos;
+
+                // Si hay tiempo libre antes de esta cita
+                if (cIni > cursorMin) {
+                    bloques.push({
+                        tipo: 'libre',
+                        inicio: cursorMin,
+                        fin: cIni
+                    });
+                }
+
+                bloques.push({
+                    tipo: 'cita',
+                    data: cita,
+                    inicio: cIni,
+                    fin: cFin
+                });
+
+                cursorMin = Math.max(cursorMin, cFin);
+            });
+
+            // Tiempo libre restante hasta el cierre
+            if (cursorMin < rango.fin) {
+                bloques.push({
+                    tipo: 'libre',
+                    inicio: cursorMin,
+                    fin: rango.fin
+                });
+            }
+
+            // Filtrar según pestaña elegida ("Todo el día", "Solo Citas", "Disponibles")
+            const bloquesFiltrados = bloques.filter(b => {
+                if (filtroVistaDia === 'citas') return b.tipo === 'cita';
+                if (filtroVistaDia === 'libres') return b.tipo === 'libre';
+                return true;
+            });
+
+            if (bloquesFiltrados.length === 0) {
+                container.innerHTML = `<div class="text-center py-10 text-slate-400 text-sm">No hay elementos para mostrar con este filtro.</div>`;
+                return;
+            }
+
+            bloquesFiltrados.forEach(b => {
+                if (b.tipo === 'libre') {
+                    const duracionLibre = b.fin - b.inicio;
+                    const hrs = Math.floor(duracionLibre / 60);
+                    const mins = duracionLibre % 60;
+                    const textoDuracion = `${hrs > 0 ? hrs + 'h ' : ''}${mins > 0 ? mins + 'm' : ''}`;
+
+                    container.innerHTML += `
+                        <div class="p-3.5 rounded-xl border border-dashed border-emerald-300 bg-emerald-50/40 flex items-center justify-between gap-3">
+                            <div class="flex items-center gap-3">
+                                <div class="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                                    <i class="ph-bold ph-clock"></i>
+                                </div>
+                                <div>
+                                    <span class="text-xs font-bold text-emerald-800 block">Horario Disponible (${textoDuracion.trim()})</span>
+                                    <span class="text-xs text-emerald-700">${formatHora12(minutesToTime(b.inicio))} - ${formatHora12(minutesToTime(b.fin))}</span>
+                                </div>
+                            </div>
+                            <button onclick="agendarEnHuecoLibre('${fechaSeleccionadaMisCitas}', '${minutesToTime(b.inicio)}')"
+                                class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow-xs transition shrink-0">
+                                + Agendar aquí
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    const c = b.data;
+                    container.innerHTML += `
+                        <div class="p-4 rounded-2xl bg-white border-l-4 border-l-indigo-600 border border-slate-200 shadow-xs space-y-2.5">
+                            <div class="flex items-start justify-between gap-2">
+                                <div>
+                                    <span class="inline-block px-2.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-xs font-bold mb-1">
+                                        ${formatHora12(c.horaInicio)} - ${formatHora12(c.horaFin)}
+                                    </span>
+                                    <h4 class="font-bold text-slate-900 text-base">${c.nombre}</h4>
+                                    <p class="text-xs font-medium text-slate-600">${c.servicio}</p>
+                                </div>
+                                <span class="font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg text-sm">
+                                    $${Number(c.costo).toFixed(2)}
+                                </span>
+                            </div>
+
+                            <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 pt-1">
+                                <span><i class="ph-bold ph-phone text-slate-400"></i> ${c.telefono}</span>
+                                ${c.direccion ? `<span><i class="ph-bold ph-map-pin text-slate-400"></i> ${c.direccion}</span>` : ''}
+                            </div>
+
+                            <div class="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-end gap-2">
+                                <button onclick="verComprobanteDeCita('${c.id}')" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition">
+                                    <i class="ph-bold ph-image"></i> Comprobante
+                                </button>
+                                <button onclick="abrirEnGoogleCalendar('${c.id}')" class="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition">
+                                    <i class="ph-bold ph-google-logo"></i> Google Cal
+                                </button>
+                                <button onclick="eliminarCita('${c.id}')" class="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-semibold flex items-center gap-1 transition">
+                                    <i class="ph-bold ph-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+        }
+
+        function agendarEnHuecoLibre(fecha, hora) {
+            switchTab('agendar');
+            seleccionarDiaAgendar(fecha);
+            seleccionarSlotHora(hora);
+        }
+
+        function verComprobanteDeCita(id) {
+            const cita = citas.find(c => c.id === id);
+            if (cita) {
+                ultimaCitaCreada = cita;
+                generarComprobanteCanvas(cita);
+            }
+        }
+
+        function eliminarCita(id) {
+            citas = citas.filter(c => c.id !== id);
+            localStorage.setItem('agendapro_citas', JSON.stringify(citas));
+            actualizarContadores();
+            renderCalendario('miscitas');
+            renderVistaDiaMisCitas();
+            filtrarCitasBuscador(document.getElementById('buscador-citas').value);
+            showToast('Cita eliminada de la agenda.', 'info');
+        }
+
+        // --- BUSCADOR EN TIEMPO REAL ---
+        function filtrarCitasBuscador(query) {
+            const q = query.trim().toLowerCase();
+            const container = document.getElementById('resultados-busqueda-container');
+            const list = document.getElementById('lista-resultados-busqueda');
+            const counter = document.getElementById('contador-busqueda');
+            const btnClear = document.getElementById('btn-limpiar-busqueda');
+
+            if (!q) {
+                container.classList.add('hidden');
+                btnClear.classList.add('hidden');
+                return;
+            }
+
+            btnClear.classList.remove('hidden');
+            container.classList.remove('hidden');
+
+            const coincidencias = citas.filter(c => {
+                return (
+                    c.nombre.toLowerCase().includes(q) ||
+                    c.servicio.toLowerCase().includes(q) ||
+                    c.telefono.includes(q) ||
+                    (c.direccion && c.direccion.toLowerCase().includes(q)) ||
+                    c.fecha.includes(q) ||
+                    String(c.costo).includes(q)
+                );
+            });
+
+            counter.textContent = `${coincidencias.length} encontrada(s)`;
+            list.innerHTML = '';
+
+            if (coincidencias.length === 0) {
+                list.innerHTML = `<p class="text-xs text-slate-400 py-2">No se encontraron citas que coincidan con "${query}".</p>`;
+                return;
+            }
+
+            coincidencias.forEach(c => {
+                list.innerHTML += `
+                    <div onclick="irACitaDesdeBuscador('${c.fecha}')" class="p-3 rounded-xl bg-slate-50 hover:bg-indigo-50/70 border border-slate-200 cursor-pointer transition flex items-center justify-between gap-3">
+                        <div>
+                            <p class="font-bold text-sm text-slate-900">${c.nombre} <span class="font-normal text-xs text-slate-500">(${c.telefono})</span></p>
+                            <p class="text-xs text-indigo-700 font-medium">${c.servicio} • $${c.costo}</p>
+                            <p class="text-[11px] text-slate-500 mt-0.5"><i class="ph-bold ph-calendar"></i> ${c.fecha} | ${formatHora12(c.horaInicio)} - ${formatHora12(c.horaFin)}</p>
+                        </div>
+                        <i class="ph-bold ph-arrow-right text-slate-400"></i>
+                    </div>
+                `;
+            });
+        }
+
+        function irACitaDesdeBuscador(fechaIso) {
+            const [y, m] = fechaIso.split('-').map(Number);
+            mesMisCitas = new Date(y, m - 1, 1);
+            seleccionarDiaMisCitas(fechaIso);
+            showToast(`Mostrando agenda del ${fechaIso}`, 'info');
+        }
+
+        function limpiarBuscador() {
+            const input = document.getElementById('buscador-citas');
+            input.value = '';
+            filtrarCitasBuscador('');
+        }
+
+        // --- SECCIÓN "AJUSTES" Y ALMACENAMIENTO ÚNICO DE LOGO ---
+        function cargarAjustesEnUI() {
+            document.getElementById('ajuste-horario-activo').checked = ajustes.horarioActivo;
+            document.getElementById('ajuste-hora-inicio').value = ajustes.horaInicio;
+            document.getElementById('ajuste-hora-fin').value = ajustes.horaFin;
+            document.getElementById('ajuste-encabezado').value = ajustes.encabezado;
+            document.getElementById('ajuste-pie').value = ajustes.pie;
+
+            if (ajustes.horarioActivo) {
+                document.getElementById('ajuste-rango-container').classList.remove('hidden');
+            }
+
+            actualizarPreviewLogoUI();
+        }
+
+        function toggleRangoHorario() {
+            const activo = document.getElementById('ajuste-horario-activo').checked;
+            const rangoBox = document.getElementById('ajuste-rango-container');
+            if (activo) {
+                rangoBox.classList.remove('hidden');
+            } else {
+                rangoBox.classList.add('hidden');
+            }
+            guardarAjustes();
+        }
+
+        function guardarAjustes() {
+            ajustes.horarioActivo = document.getElementById('ajuste-horario-activo').checked;
+            ajustes.horaInicio = document.getElementById('ajuste-hora-inicio').value || '09:00';
+            ajustes.horaFin = document.getElementById('ajuste-hora-fin').value || '18:00';
+            ajustes.encabezado = document.getElementById('ajuste-encabezado').value;
+            ajustes.pie = document.getElementById('ajuste-pie').value;
+
+            localStorage.setItem('agendapro_ajustes', JSON.stringify(ajustes));
+        }
+
+        function procesarNuevoLogo(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                // Reemplaza la imagen anterior por la nueva (solo 1 imagen activa)
+                ajustes.logoBase64 = e.target.result;
+                localStorage.setItem('agendapro_ajustes', JSON.stringify(ajustes));
+                actualizarPreviewLogoUI();
+                showToast('Logo actualizado y reemplazado correctamente.');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function eliminarLogo() {
+            ajustes.logoBase64 = null;
+            localStorage.setItem('agendapro_ajustes', JSON.stringify(ajustes));
+            document.getElementById('input-logo').value = '';
+            actualizarPreviewLogoUI();
+            showToast('Logo eliminado.', 'info');
+        }
+
+        function actualizarPreviewLogoUI() {
+            const box = document.getElementById('preview-logo-box');
+            const btnDel = document.getElementById('btn-eliminar-logo');
+            const status = document.getElementById('estado-hoja-logo');
+
+            if (ajustes.logoBase64) {
+                box.innerHTML = `<img src="${ajustes.logoBase64}" alt="Logo" class="w-full h-full object-contain p-1">`;
+                btnDel.classList.remove('hidden');
+                status.textContent = 'Pestaña [Config_Logo]: 1 imagen activa almacenada.';
+                status.classList.add('text-emerald-700', 'font-medium');
+            } else {
+                box.innerHTML = `<span class="text-xs text-slate-400 text-center px-2">Sin logo</span>`;
+                btnDel.classList.add('hidden');
+                status.textContent = 'Pestaña [Config_Logo]: Vacía (sin imagen adjunta).';
+                status.classList.remove('text-emerald-700', 'font-medium');
+            }
+        }
+    </script>
+</body>
+</html>
